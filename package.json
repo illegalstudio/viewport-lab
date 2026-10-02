@@ -1,0 +1,15 @@
+{
+  "name": "chrome-quickview",
+  "version": "1.0.3",
+  "private": true,
+  "type": "module",
+  "description": "Resize the current tab's viewport using draggable handles.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "icons": "node scripts/generate-icons.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.0"
+  }
+}

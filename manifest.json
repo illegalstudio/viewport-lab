@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Quickview",
+  "version": "1.0.3",
+  "description": "Ridimensiona il viewport della scheda corrente trascinando i bordi, senza ridimensionare la finestra.",
+  "minimum_chrome_version": "118",
+  "permissions": [
+    "debugger",
+    "storage",
+    "activeTab"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Quickview: attiva o disattiva il viewport",
+    "default_icon": {
+      "16": "assets/icons/16.png",
+      "32": "assets/icons/32.png"
+    }
+  },
+  "icons": {
+    "16": "assets/icons/16.png",
+    "32": "assets/icons/32.png",
+    "48": "assets/icons/48.png",
+    "128": "assets/icons/128.png"
+  }
+}
