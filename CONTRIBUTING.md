@@ -1,6 +1,6 @@
 # Contributing
 
-Quickview is a plain JavaScript Manifest V3 extension. Keep installation free of build steps and production code free of dependencies. npm dependencies are for development only.
+Viewport Lab is a plain JavaScript Manifest V3 extension. Keep installation free of build steps and production code free of dependencies. npm dependencies are for development only.
 
 ## Setup
 
@@ -10,7 +10,7 @@ Use Node.js 24 and run the commands in the [README](README.md#development). Load
 
 - Preserve the real page viewport and the current page state. Do not resize the browser window or embed the site in an iframe.
 - Keep dimensions within the native tab space measured at activation.
-- Keep the fixed control strip and restore site styles when Quickview closes.
+- Keep the fixed control strip and restore site styles when Viewport Lab closes.
 - Write repository documentation in English. The extension UI is currently in Italian.
 - Keep the version in `manifest.json`, `package.json` and `package-lock.json` consistent when preparing a release.
 - Edit the vector logo in `assets/logo-mark.svg` and run `npm run icons` to update its PNG exports.

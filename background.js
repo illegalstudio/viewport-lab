@@ -1,5 +1,5 @@
-const WORLD = `quickview-${chrome.runtime.id}`;
-const BINDING = "__quickviewSend";
+const WORLD = `viewport-lab-${chrome.runtime.id}`;
+const BINDING = "__viewportLabSend";
 const sessions = new Map();
 const queues = new Map();
 const ready = chrome.storage.session.get("sessions").then(({ sessions: saved = {} }) => {
@@ -29,7 +29,7 @@ async function notify(tabId, message) {
   if (!session?.contextId) return;
   const result = await command(tabId, "Runtime.evaluate", {
     contextId: session.contextId,
-    expression: `globalThis.__quickview?.receive(${JSON.stringify(message)})`
+    expression: `globalThis.__viewportLab?.receive(${JSON.stringify(message)})`
   });
   if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
 }
@@ -38,7 +38,7 @@ async function badge(tabId, active, error = "") {
   await Promise.all([
     chrome.action.setBadgeText({ tabId, text: error ? "!" : active ? "ON" : "" }),
     chrome.action.setBadgeBackgroundColor({ tabId, color: error ? "#dc2626" : "#2563eb" }),
-    chrome.action.setTitle({ tabId, title: error || (active ? "Quickview: clicca per ripristinare" : "Quickview: attiva il viewport") })
+    chrome.action.setTitle({ tabId, title: error || (active ? "Viewport Lab: clicca per ripristinare" : "Viewport Lab: attiva il viewport") })
   ]);
 }
 
@@ -109,10 +109,10 @@ async function disable(tabId) {
 }
 
 async function reportError(tabId, error) {
-  console.error("Quickview:", error);
+  console.error("Viewport Lab:", error);
   const message = /already attached|another debugger/i.test(error.message)
-    ? "Quickview: chiudi DevTools o l'altro debugger e riprova."
-    : `Quickview: ${error.message}`;
+    ? "Viewport Lab: chiudi DevTools o l'altro debugger e riprova."
+    : `Viewport Lab: ${error.message}`;
   await badge(tabId, false, message).catch(() => {});
 }
 
@@ -156,7 +156,7 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
     }
   }).catch(error => {
     // An in-flight drag can reach a context that disappeared during navigation.
-    console.warn("Quickview:", error.message);
+    console.warn("Viewport Lab:", error.message);
   });
 });
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Quickview",
-  "version": "1.0.3",
+  "name": "Viewport Lab",
+  "version": "1.0.4",
   "description": "Ridimensiona il viewport della scheda corrente trascinando i bordi, senza ridimensionare la finestra.",
   "minimum_chrome_version": "118",
   "permissions": [
@@ -13,7 +13,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Quickview: attiva o disattiva il viewport",
+    "default_title": "Viewport Lab: attiva o disattiva il viewport",
     "default_icon": {
       "16": "assets/icons/16.png",
       "32": "assets/icons/32.png"

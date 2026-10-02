@@ -56,7 +56,7 @@ before(async () => {
   url = `http://127.0.0.1:${server.address().port}`;
   profile = await mkdtemp(resolve(".test-profile-"));
   context = await chromium.launchPersistentContext(profile, {
-    executablePath: process.env.QUICKVIEW_BROWSER || undefined,
+    executablePath: process.env.VIEWPORT_LAB_BROWSER || undefined,
     channel: "chromium", headless: true, viewport: null,
     // Hide Chrome's native debug banner in automation so it cannot change the
     // available height while assertions run. The installed extension shows it.
@@ -103,7 +103,7 @@ async function open(path = "/") {
   }, target);
   assert.ok(tabId);
   await worker.evaluate(({ id, url }) => toggle({ id, url }), { id: tabId, url: target });
-  await page.locator("quickview-controls .right").waitFor();
+  await page.locator("viewport-lab-controls .right").waitFor();
   return { page, tabId };
 }
 
@@ -161,7 +161,7 @@ async function clickPageElement(page, selector, scale = 1) {
 }
 
 async function screenshot(tabId, name) {
-  if (!process.env.QUICKVIEW_SCREENSHOTS) return;
+  if (!process.env.VIEWPORT_LAB_SCREENSHOTS) return;
   // Capture through the extension's session. Playwright's screenshot helper
   // temporarily changes device metrics through a second debugger session.
   const { data } = await worker.evaluate(id => chrome.debugger.sendCommand({ tabId: id }, "Page.captureScreenshot", {
@@ -193,7 +193,7 @@ test("handles resize the real viewport, including media queries and viewport uni
     await page.getByRole("button", { name: "Ripristina dimensioni iniziali" }).click();
     await waitSize(page, 1200, 800);
     await worker.evaluate(id => toggle({ id }), tabId);
-    await page.locator("quickview-controls").waitFor({ state: "detached" });
+    await page.locator("viewport-lab-controls").waitFor({ state: "detached" });
     await waitSize(page, 1200, 800);
   } finally { await page.close(); }
 });
@@ -205,7 +205,7 @@ test("typed values, dragging and keyboard resizing cannot exceed the native tab 
     await waitSize(page, 1200, 800);
     assert.equal(await page.getByRole("spinbutton", { name: "Larghezza viewport" }).inputValue(), "1200");
     assert.equal(await page.getByRole("spinbutton", { name: "Altezza viewport" }).inputValue(), "800");
-    assert.equal(await page.locator("quickview-controls output").textContent(), "px");
+    assert.equal(await page.locator("viewport-lab-controls output").textContent(), "px");
     await size(page, 500, 400);
     await drag(page, ".corner", 1600, 1000);
     await waitSize(page, 1200, 800);
@@ -218,7 +218,7 @@ test("typed values, dragging and keyboard resizing cannot exceed the native tab 
     assert.deepEqual(await windowBounds(page), nativeWindow);
     await screenshot(tabId, "desktop");
     await page.keyboard.press("Escape");
-    await page.locator("quickview-controls").waitFor({ state: "detached" });
+    await page.locator("viewport-lab-controls").waitFor({ state: "detached" });
     await waitSize(page, 1200, 800);
   } finally { await page.close(); }
 });
@@ -226,8 +226,8 @@ test("typed values, dragging and keyboard resizing cannot exceed the native tab 
 test("the fixed strip reserves page space, keeps fixed and sticky headers below it, and restores site styles", async () => {
   const { page } = await open("/header");
   try {
-    const toolbar = page.locator("quickview-controls .toolbar");
-    assert.equal((await toolbar.textContent()).includes("Quickview"), false);
+    const toolbar = page.locator("viewport-lab-controls .toolbar");
+    assert.equal((await toolbar.textContent()).includes("Viewport Lab"), false);
     assert.equal(await page.getByRole("button", { name: "Sposta barra" }).count(), 0);
     await size(page, 500, 400);
     const rect = await toolbar.boundingBox();
@@ -257,14 +257,14 @@ test("the fixed strip reserves page space, keeps fixed and sticky headers below 
     await size(page, 240, 180);
     assert.equal((await toolbar.boundingBox()).width, 240);
     assert.equal(await page.locator("#fixed-top").evaluate(e => e.getBoundingClientRect().top), 40);
-    await page.getByRole("button", { name: "Chiudi Quickview", exact: true }).click();
+    await page.getByRole("button", { name: "Chiudi Viewport Lab", exact: true }).click();
     await waitSize(page, 1200, 800);
     await page.evaluate(() => scrollTo(0, 0));
     assert.equal(await page.locator("#start").evaluate(e => e.getBoundingClientRect().top), 6);
     assert.equal(await page.locator("#fixed-top").evaluate(e => e.getBoundingClientRect().top), 0);
     assert.equal(await page.locator("#dynamic-fixed").evaluate(e => e.getBoundingClientRect().top), 0);
     assert.equal(await page.locator("#sticky").evaluate(e => getComputedStyle(e).top), "10px");
-    assert.equal(await page.locator("[data-quickview-inset]").count(), 0);
+    assert.equal(await page.locator("[data-viewport-lab-inset]").count(), 0);
     assert.equal(await page.evaluate(() => document.adoptedStyleSheets.length), 1);
     assert.equal(await page.locator("body").evaluate(e => getComputedStyle(e).color), "rgb(1, 2, 3)");
   } finally { await page.close(); }
@@ -275,16 +275,16 @@ test("reloads and cross-origin navigation preserve dimensions and reinstall the 
   try {
     await size(page, 390, 700);
     await page.reload();
-    await page.locator("quickview-controls .right").waitFor();
+    await page.locator("viewport-lab-controls .right").waitFor();
     await waitSize(page, 390, 700);
     await page.goto(url.replace("127.0.0.1", "localhost") + "/next");
-    await page.locator("quickview-controls .right").waitFor();
+    await page.locator("viewport-lab-controls .right").waitFor();
     await waitSize(page, 390, 700);
-    await page.getByRole("button", { name: "Chiudi Quickview", exact: true }).click();
-    await page.locator("quickview-controls").waitFor({ state: "detached" });
+    await page.getByRole("button", { name: "Chiudi Viewport Lab", exact: true }).click();
+    await page.locator("viewport-lab-controls").waitFor({ state: "detached" });
     await waitSize(page, 1200, 800);
     await page.reload();
-    assert.equal(await page.locator("quickview-controls").count(), 0);
+    assert.equal(await page.locator("viewport-lab-controls").count(), 0);
   } finally { await page.close(); }
 });
 
@@ -302,10 +302,10 @@ test("keyboard resizing, minimum sizes and independent tabs", async () => {
     await waitSize(page, 250, 180);
     await page.evaluate(() => scrollTo(0, 300));
     assert.equal(await page.locator(".bottom").evaluate(e => Math.round(e.getBoundingClientRect().bottom)), 180);
-    assert.equal(await other.locator("quickview-controls").count(), 0);
+    assert.equal(await other.locator("viewport-lab-controls").count(), 0);
     assert.equal((await dimensions(other)).width, 1200);
     await page.keyboard.press("Escape");
-    await page.locator("quickview-controls").waitFor({ state: "detached" });
+    await page.locator("viewport-lab-controls").waitFor({ state: "detached" });
   } finally { await page.close(); await other.close(); }
 });
 
@@ -314,7 +314,7 @@ test("cancelling Chrome debugging removes the controls and restores the viewport
   try {
     await size(page, 500, 400);
     await worker.evaluate(id => chrome.debugger.detach({ tabId: id }), tabId);
-    await page.locator("quickview-controls").waitFor({ state: "detached", timeout: 8000 });
+    await page.locator("viewport-lab-controls").waitFor({ state: "detached", timeout: 8000 });
     await waitSize(page, 1200, 800);
   } finally { await page.close(); }
 });
@@ -343,7 +343,7 @@ test("clicks, typing, scrolling and anchor navigation retain the chosen viewport
       assert.equal(await page.evaluate(() => document.activeElement.id), "lower-state");
       await page.keyboard.type("more interaction");
       await waitSize(page, width, height);
-      assert.equal(await page.locator("quickview-controls").count(), 1);
+      assert.equal(await page.locator("viewport-lab-controls").count(), 1);
     }
   } finally { await page.close(); }
 });
@@ -401,6 +401,6 @@ test("focusing an offscreen input keeps the responsive viewport and paints the f
     await page.waitForFunction(() => document.activeElement.id === "focus" && scrollY > 400);
     await waitSize(page, 500, 300);
     assert.deepEqual(await firstPagePixel(tabId), [0, 0, 255]);
-    assert.equal(await page.locator("quickview-controls").count(), 1);
+    assert.equal(await page.locator("viewport-lab-controls").count(), 1);
   } finally { await page.close(); }
 });

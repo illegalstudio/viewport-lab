@@ -1,5 +1,5 @@
 (() => {
-  if (window !== window.top || globalThis.__quickview) return;
+  if (window !== window.top || globalThis.__viewportLab) return;
 
   const abort = new AbortController();
   const listen = (target, name, handler, options = {}) =>
@@ -17,7 +17,7 @@
   let heartbeat;
   let missedReplies = 0;
   const HEADER_HEIGHT = 40;
-  const INSET_ATTRIBUTE = "data-quickview-inset";
+  const INSET_ATTRIBUTE = "data-viewport-lab-inset";
   const insetElements = new Map();
   let pageSheet;
   let pageObserver;
@@ -77,7 +77,7 @@
   }
 
   function send(message) {
-    try { globalThis.__quickviewSend(JSON.stringify(message)); }
+    try { globalThis.__viewportLabSend(JSON.stringify(message)); }
     catch { destroy(); }
   }
 
@@ -90,7 +90,7 @@
     if (pageSheet) document.adoptedStyleSheets = document.adoptedStyleSheets.filter(sheet => sheet !== pageSheet);
     for (const [element, record] of insetElements) restoreInsetAttribute(element, record);
     host?.remove();
-    delete globalThis.__quickview;
+    delete globalThis.__viewportLab;
   }
 
   function display() {
@@ -119,7 +119,7 @@
     frame = requestAnimationFrame(() => send(message));
   }
 
-  globalThis.__quickview = {
+  globalThis.__viewportLab = {
     receive(message) {
       missedReplies = 0;
       if (message.type === "stop") return destroy();
@@ -130,8 +130,8 @@
   };
 
   function mount() {
-    if (!globalThis.__quickview || host) return;
-    host = document.createElement("quickview-controls");
+    if (!globalThis.__viewportLab || host) return;
+    host = document.createElement("viewport-lab-controls");
     host.setAttribute("popover", "manual");
     host.style.cssText = "all:initial!important;position:fixed!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;overflow:visible!important;pointer-events:none!important;z-index:2147483647!important;color-scheme:dark!important;font:12px/1.4 system-ui,sans-serif!important;";
     shadow = host.attachShadow({ mode: "open" });
@@ -180,13 +180,13 @@
       element("div", { class: "handle right", tabindex: "0", role: "separator", "aria-label": "Ridimensiona larghezza", "aria-orientation": "vertical", "data-axis": "width" }),
       element("div", { class: "handle bottom", tabindex: "0", role: "separator", "aria-label": "Ridimensiona altezza", "aria-orientation": "horizontal", "data-axis": "height" }),
       element("div", { class: "handle corner", tabindex: "0", role: "button", "aria-label": "Ridimensiona larghezza e altezza", "data-axis": "both" }, [icon("m5 11 6-6m-2 7 3-3", "0 0 16 16")]),
-      element("div", { class: "toolbar", role: "region", "aria-label": "Quickview" }, [
+      element("div", { class: "toolbar", role: "region", "aria-label": "Viewport Lab" }, [
         element("input", { name: "width", type: "number", step: "1", "aria-label": "Larghezza viewport", title: "Larghezza in pixel" }),
         element("span", { class: "times", "aria-hidden": "true" }, ["×"]),
         element("input", { name: "height", type: "number", step: "1", "aria-label": "Altezza viewport", title: "Altezza in pixel" }),
         element("output", { title: "Scala di visualizzazione. Le dimensioni del viewport restano quelle impostate." }, ["px"]),
         element("button", { class: "reset", title: "Ripristina dimensioni iniziali", "aria-label": "Ripristina dimensioni iniziali" }, [icon("M4 8a6 6 0 1 1 0 5M4 3v5h5")]),
-        element("button", { class: "close", title: "Chiudi Quickview (Esc)", "aria-label": "Chiudi Quickview" }, [icon("m5 5 10 10M15 5 5 15")])
+        element("button", { class: "close", title: "Chiudi Viewport Lab (Esc)", "aria-label": "Chiudi Viewport Lab" }, [icon("m5 5 10 10M15 5 5 15")])
       ])
     );
     document.documentElement.append(host);
