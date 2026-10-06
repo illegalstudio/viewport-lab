@@ -115,10 +115,12 @@
     delete globalThis.__viewportLab;
   }
 
-  function display() {
+  function display(preserveEditing = false) {
     if (!shadow) return;
-    shadow.querySelector('[name="width"]').value = width;
-    shadow.querySelector('[name="height"]').value = height;
+    for (const [name, value] of [["width", width], ["height", height]]) {
+      const input = shadow.querySelector(`[name="${name}"]`);
+      if (!preserveEditing || shadow.activeElement !== input) input.value = value;
+    }
     shadow.querySelector('[name="width"]').min = Math.min(240, availableWidth);
     shadow.querySelector('[name="width"]').max = availableWidth;
     shadow.querySelector('[name="height"]').min = Math.min(180, availableHeight);
@@ -155,6 +157,8 @@
       missedReplies = 0;
       if (message.type === "stop") return destroy();
       if (message.type !== "size") return;
+      // Native size limits may change in CSS pixels when browser zoom changes.
+      ({ availableWidth, availableHeight } = message);
       // An older reply still releases transport capacity for the latest intent.
       if (message.requestId === inFlightResize) {
         inFlightResize = undefined;
@@ -162,7 +166,7 @@
       }
       if (message.requestId < requestId) return;
       ({ width, height, scale, availableWidth, availableHeight } = message);
-      display();
+      display(true);
     }
   };
 
@@ -261,17 +265,21 @@
         if (event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
-        drag = { axis: handle.dataset.axis, x: event.screenX, y: event.screenY, width, height, scale };
+        // Anchor to the rendered edge, even if an earlier resize is pending.
+        drag = {
+          axis: handle.dataset.axis, pointerId: event.pointerId,
+          x: event.clientX, y: event.clientY, width: innerWidth, height: innerHeight
+        };
         schedulePageInset();
         handle.setPointerCapture(event.pointerId);
       });
       listen(handle, "pointermove", event => {
-        if (!drag) return;
+        if (!drag || event.pointerId !== drag.pointerId) return;
         event.preventDefault();
         event.stopPropagation();
         resize(
-          drag.axis === "height" ? drag.width : drag.width + (event.screenX - drag.x) / drag.scale,
-          drag.axis === "width" ? drag.height : drag.height + (event.screenY - drag.y) / drag.scale
+          drag.axis === "height" ? drag.width : drag.width + event.clientX - drag.x,
+          drag.axis === "width" ? drag.height : drag.height + event.clientY - drag.y
         );
       });
       const finish = () => {

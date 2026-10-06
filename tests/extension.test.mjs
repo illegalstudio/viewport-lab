@@ -96,7 +96,7 @@ after(async () => {
   if (server) await new Promise(r => server.close(r));
 });
 
-async function open(path = "/") {
+async function open(path = "/", zoom = 1) {
   const page = await context.newPage();
   const target = url + path;
   await page.goto(target);
@@ -107,6 +107,12 @@ async function open(path = "/") {
     return targets.find(t => t.url === target && tabs.some(tab => tab.id === t.tabId))?.tabId;
   }, target);
   assert.ok(tabId);
+  if (zoom !== 1) {
+    await worker.evaluate(({ tabId, zoom }) => chrome.tabs.setZoom(tabId, zoom), { tabId, zoom });
+    await page.waitForFunction(({ width, height }) => innerWidth === width && innerHeight === height, {
+      width: Math.round(1200 / zoom), height: Math.round(800 / zoom)
+    });
+  }
   await worker.evaluate(({ id, url }) => toggle({ id, url }), { id: tabId, url: target });
   await page.locator("viewport-lab-controls .right").waitFor();
   return { page, tabId };
@@ -149,6 +155,8 @@ async function size(page, width, height) {
   await w.fill(String(width));
   await w.press("Enter");
   await page.waitForFunction(width => innerWidth === width, expectedWidth);
+  // Metrics can apply before the acknowledgement refreshes the input fields.
+  await worker.evaluate(() => Promise.all([...queues.values()]));
   await h.fill(String(height));
   await h.press("Enter");
   await waitSize(page, expectedWidth, expectedHeight);
@@ -285,6 +293,57 @@ test("the fixed strip reserves page space, keeps fixed and sticky headers below 
   } finally { await page.close(); }
 });
 
+test("each resize handle preserves its pointer offset throughout shrinking, growing and limit recovery", async () => {
+  const { page } = await open();
+  try {
+    for (const selector of [".right", ".bottom", ".corner"]) {
+      await size(page, 600, 500);
+      const box = await page.locator(selector).boundingBox();
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      for (const delta of [-80, -160, 60, 100, -800, -100]) {
+        const dx = selector === ".bottom" ? 0 : delta;
+        const dy = selector === ".right" ? 0 : delta;
+        const width = Math.max(240, 600 + dx);
+        const height = Math.max(180, 500 + dy);
+        await page.mouse.move(x + dx, y + dy);
+        await waitSize(page, width, height);
+        const edge = await page.locator(selector).boundingBox();
+        if (selector !== ".bottom") assert.equal(edge.x + edge.width, width);
+        if (selector !== ".right") assert.equal(edge.y + edge.height, height);
+      }
+      await page.mouse.up();
+    }
+    assert.deepEqual(await windowBounds(page), nativeWindow);
+  } finally { await page.close(); }
+});
+
+test("resize edges stay attached to the CSS pointer position when the browser is zoomed", async () => {
+  const { page, tabId } = await open("/zoom", 1.25);
+  try {
+    await waitSize(page, 960, 640);
+    await drag(page, ".right", -200, 0);
+    await waitSize(page, 760, 640);
+    await drag(page, ".bottom", 0, -100);
+    await waitSize(page, 760, 540);
+    await drag(page, ".corner", -100, -100);
+    await waitSize(page, 660, 440);
+    await size(page, 10000, 10000);
+    await waitSize(page, 960, 640);
+    await worker.evaluate(id => chrome.tabs.setZoom(id, 1), tabId);
+    await page.waitForFunction(() => innerWidth === 1200 && innerHeight === 800);
+    await page.getByRole("button", { name: "Ripristina dimensioni iniziali" }).click();
+    await waitSize(page, 1200, 800);
+    await page.waitForFunction(() => document.querySelector("viewport-lab-controls").shadowRoot.querySelector('[name="width"]').max === "1200");
+    assert.deepEqual(await windowBounds(page), nativeWindow);
+  } finally {
+    await worker.evaluate(id => chrome.tabs.setZoom(id, 1), tabId);
+    await page.close();
+  }
+});
+
 test("dragging a dense page avoids full-page style scans until release and updates responsive headers afterward", async () => {
   const { page, tabId } = await open("/large");
   try {
@@ -335,7 +394,8 @@ test("slow debugger replies collapse pending resize requests to the final dimens
     });
     await page.locator("viewport-lab-controls .right").evaluate(handle => {
       handle.addEventListener("pointerdown", event => {
-        globalThis.__dragOrigin = { x: event.screenX, y: event.screenY, pointerId: event.pointerId };
+        globalThis.__dragOrigin = { x: event.screenX, y: event.screenY,
+          clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId };
       }, { once: true });
     });
     const box = await page.locator("viewport-lab-controls .right").boundingBox();
@@ -346,7 +406,8 @@ test("slow debugger replies collapse pending resize requests to the final dimens
       for (let step = 1; step <= 12; step++) {
         handle.dispatchEvent(new PointerEvent("pointermove", {
           bubbles: true, buttons: 1, pointerId: __dragOrigin.pointerId,
-          screenX: __dragOrigin.x + step * 10, screenY: __dragOrigin.y
+          screenX: __dragOrigin.x + step * 10, screenY: __dragOrigin.y,
+          clientX: __dragOrigin.clientX + step * 10, clientY: __dragOrigin.clientY
         }));
         await new Promise(resolve => requestAnimationFrame(resolve));
       }
@@ -357,6 +418,15 @@ test("slow debugger replies collapse pending resize requests to the final dimens
     await worker.evaluate(id => enqueue(id, () => {}), tabId);
     assert.equal(await worker.evaluate(() => __metricCalls), 2, "Only the in-flight and latest resize should reach the debugger");
     assert.equal(await page.getByRole("spinbutton", { name: "Larghezza viewport" }).inputValue(), "620");
+    // A second drag must grab the visible edge, not an unapplied target size.
+    await worker.evaluate(() => __holdMetrics());
+    await drag(page, ".right", -100, 0);
+    await worker.evaluate(() => __metricStarted);
+    await waitSize(page, 620, 400);
+    await drag(page, ".right", -50, 0);
+    await worker.evaluate(() => __releaseMetric());
+    await waitSize(page, 570, 400);
+    await worker.evaluate(id => enqueue(id, () => {}), tabId);
     // Reset must discard pending drag/key intentions even before an old reply.
     await worker.evaluate(() => __holdMetrics());
     const right = page.getByRole("separator", { name: "Ridimensiona larghezza" });
@@ -369,6 +439,17 @@ test("slow debugger replies collapse pending resize requests to the final dimens
     await worker.evaluate(id => enqueue(id, () => {}), tabId);
     assert.equal(await worker.evaluate(() => __metricCalls), 2);
     assert.equal(await page.getByRole("spinbutton", { name: "Larghezza viewport" }).inputValue(), "1200");
+    // An acknowledgement must not replace a numeric value being edited.
+    await worker.evaluate(() => __holdMetrics());
+    await right.press("Shift+ArrowLeft");
+    await worker.evaluate(() => __metricStarted);
+    const heightInput = page.getByRole("spinbutton", { name: "Altezza viewport" });
+    await heightInput.fill("450");
+    await worker.evaluate(() => __releaseMetric());
+    await worker.evaluate(id => enqueue(id, () => {}), tabId);
+    assert.equal(await heightInput.inputValue(), "450");
+    await heightInput.press("Enter");
+    await waitSize(page, 1190, 450);
   } finally {
     await worker.evaluate(() => {
       globalThis.__releaseMetric?.();

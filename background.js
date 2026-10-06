@@ -45,12 +45,20 @@ async function badge(tabId, active, error = "") {
 async function setSize(tabId, size, requestId = 0) {
   const session = sessions.get(tabId);
   if (!session) return;
-  const width = Math.max(Math.min(240, session.availableWidth), Math.min(session.availableWidth, Math.round(Number(size.width))));
-  const height = Math.max(Math.min(180, session.availableHeight), Math.min(session.availableHeight, Math.round(Number(size.height))));
+  const zoom = await chrome.tabs.getZoom(tabId);
+  if (session.nativeWidth && session.nativeHeight) {
+    session.availableWidth = Math.round(session.nativeWidth / zoom);
+    session.availableHeight = Math.round(session.nativeHeight / zoom);
+  }
+  const width = Math.max(Math.min(240, session.availableWidth), Math.min(session.availableWidth, Math.round(Number(size.width ?? session.availableWidth))));
+  const height = Math.max(Math.min(180, session.availableHeight), Math.min(session.availableHeight, Math.round(Number(size.height ?? session.availableHeight))));
   if (!Number.isFinite(width) || !Number.isFinite(height)) return;
   const scale = 1;
   await command(tabId, "Emulation.setDeviceMetricsOverride", {
-    width, height, deviceScaleFactor: 0, mobile: false,
+    // Device metrics use browser pixels; the controls use CSS viewport pixels.
+    width: Math.min(session.nativeWidth ?? Infinity, Math.round(width * zoom)),
+    height: Math.min(session.nativeHeight ?? Infinity, Math.round(height * zoom)),
+    deviceScaleFactor: 0, mobile: false,
     // Keep the interactive view free of a fixed screenshot crop.
     dontSetVisibleSize: true, scale
   });
@@ -72,8 +80,10 @@ async function enable(tabId) {
       awaitPromise: true, returnByValue: true
     });
     const { width, height } = result.value;
+    const zoom = await chrome.tabs.getZoom(tabId);
     sessions.set(tabId, {
-      width, height, scale: 1, availableWidth: width, availableHeight: height
+      width, height, scale: 1, availableWidth: width, availableHeight: height,
+      nativeWidth: Math.round(width * zoom), nativeHeight: Math.round(height * zoom)
     });
     await save();
     await command(tabId, "Runtime.addBinding", { name: BINDING, executionContextName: WORLD });
@@ -150,7 +160,7 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
     } else if (message.type === "stop") {
       await disable(tabId);
     } else if (message.type === "reset") {
-      await setSize(tabId, { width: session.availableWidth, height: session.availableHeight }, message.requestId);
+      await setSize(tabId, {}, message.requestId);
     } else if (message.type === "resize") {
       await setSize(tabId, message, message.requestId);
     }

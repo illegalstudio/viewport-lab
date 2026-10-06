@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Viewport Lab",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Ridimensiona il viewport della scheda corrente trascinando i bordi, senza ridimensionare la finestra.",
   "minimum_chrome_version": "118",
   "permissions": [

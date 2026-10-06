@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.5-2563EB?style=flat-square&amp;color=2563EB" alt="Version 1.0.5">
+  <img src="https://img.shields.io/badge/version-1.0.6-2563EB?style=flat-square&amp;color=2563EB" alt="Version 1.0.6">
   <img src="https://img.shields.io/badge/Chrome-118%2B-2563EB?style=flat-square&amp;logo=googlechrome&amp;logoColor=white&amp;color=2563EB" alt="Chrome 118 or newer">
   <img src="https://img.shields.io/badge/Manifest-V3-2563EB?style=flat-square&amp;color=2563EB" alt="Manifest V3">
   <img src="https://img.shields.io/badge/build-not%20required-2563EB?style=flat-square&amp;color=2563EB" alt="No build required">
@@ -62,6 +62,8 @@ Dimensions are CSS pixels. Width and height cannot exceed the native tab space m
 
 The control strip is part of the page viewport, so its 40 pixels are included in the displayed height. It is not a separate native browser header.
 
+Dragging accounts for browser zoom and keeps the original pointer offset from the visible edge.
+
 If you resize the browser window, turn Viewport Lab off and back on to measure the available space again.
 
 ## How it works
@@ -97,7 +99,7 @@ npm test
 
 On Linux, add `--with-deps` to the browser installation command if system dependencies are missing.
 
-The eleven browser tests load the actual extension and cover resizing, native size limits, media queries, viewport units, state preservation, navigation, independent tabs, keyboard controls, the fixed strip, site header offsets, style restoration and debugger cancellation. They also check clicks, typing, scrolling and offscreen input focus, including the rendered pixels. Performance regressions are covered by a 5,000-element page and delayed debugger replies, including reset while a resize is pending.
+The thirteen browser tests load the actual extension and cover resizing, native size limits, media queries, viewport units, state preservation, navigation, independent tabs, keyboard controls, the fixed strip, site header offsets, style restoration and debugger cancellation. They also check clicks, typing, scrolling and offscreen input focus, including the rendered pixels. Performance regressions are covered by a 5,000-element page and delayed debugger replies, including reset, a second drag and numeric editing while a resize is pending. Pointer tracking is checked throughout shrinking, growing and recovery from size limits, as well as at 125% browser zoom.
 
 Tests use temporary browser profiles and remove them afterward. The automation hides Chrome's debugging banner to keep the test viewport stable. Fixtures forbid iframe embedding, inline styles and HTML sinks through CSP and Trusted Types.
 
