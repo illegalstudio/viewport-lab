@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+DIST="$ROOT/dist"
+
+VERSION="$(jq -er .version "$ROOT/manifest.json")"
+OUT="$DIST/viewport-lab-$VERSION.zip"
+
+mkdir -p "$DIST"
+rm -f "$OUT"
+
+cd "$ROOT"
+zip "$OUT" \
+  manifest.json \
+  background.js \
+  controller.js \
+  LICENSE \
+  assets/icons/16.png \
+  assets/icons/32.png \
+  assets/icons/48.png \
+  assets/icons/128.png
+
+echo "Released: $OUT"

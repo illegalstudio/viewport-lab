@@ -111,6 +111,16 @@ VIEWPORT_LAB_BROWSER=/path/to/brave npm test
 
 The [GitHub Actions workflow](.github/workflows/test.yml) runs the Chromium suite on pushes and pull requests.
 
+### Release package
+
+With Bash, `jq` and `zip` installed, run:
+
+```sh
+bin/release
+```
+
+The script reads the version from `manifest.json` and creates `dist/viewport-lab-<version>.zip`, replacing any existing package for that version. The archive contains the extension files, icons and MIT license. It excludes development tools and documentation and does not publish a GitHub release. To install it, extract the archive and load that folder as an unpacked extension.
+
 ### Artwork
 
 All artwork lives in `assets/`. Each logo has a square canvas and is available as SVG and 512 × 512 PNG:
@@ -140,6 +150,7 @@ The generator uses the installed Playwright Chromium browser. Generated PNG asse
 | `assets/` | Transparent, light and dark logos, vector source and preview |
 | `tests/extension.test.mjs` | Browser integration tests |
 | `scripts/generate-icons.mjs` | Artwork generation |
+| `bin/release` | Versioned extension ZIP package |
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the development conventions.
 
