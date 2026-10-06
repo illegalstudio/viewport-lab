@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.4-2563EB?style=flat-square&amp;color=2563EB" alt="Version 1.0.4">
+  <img src="https://img.shields.io/badge/version-1.0.5-2563EB?style=flat-square&amp;color=2563EB" alt="Version 1.0.5">
   <img src="https://img.shields.io/badge/Chrome-118%2B-2563EB?style=flat-square&amp;logo=googlechrome&amp;logoColor=white&amp;color=2563EB" alt="Chrome 118 or newer">
   <img src="https://img.shields.io/badge/Manifest-V3-2563EB?style=flat-square&amp;color=2563EB" alt="Manifest V3">
   <img src="https://img.shields.io/badge/build-not%20required-2563EB?style=flat-square&amp;color=2563EB" alt="No build required">
@@ -52,7 +52,7 @@ To update an unpacked installation, click **Reload** on Viewport Lab in `chrome:
 4. Use the reset button to restore the original size while keeping the handles active.
 5. Click the extension icon again, press **Esc**, or use the **×** button to close Viewport Lab and restore the normal viewport.
 
-The controls sit in a fixed, 40-pixel strip at the top. Viewport Lab reserves space above the site and adjusts top-anchored fixed and sticky elements so the controls can stay in place while you navigate. Closing Viewport Lab removes the added styles and restores the original positions.
+The controls sit in a fixed, 40-pixel strip at the top. Viewport Lab reserves space above the site and adjusts top-anchored fixed and sticky elements so the controls can stay in place while you navigate. Closing Viewport Lab removes the added styles and restores the original positions. To keep dragging responsive on large pages, site header adjustments are batched and refreshed shortly after releasing a handle.
 
 The resize handles also support the keyboard: focus one with **Tab**, then use the arrow keys. Hold **Shift** for 10-pixel steps.
 
@@ -97,7 +97,7 @@ npm test
 
 On Linux, add `--with-deps` to the browser installation command if system dependencies are missing.
 
-The nine browser tests load the actual extension and cover resizing, native size limits, media queries, viewport units, state preservation, navigation, independent tabs, keyboard controls, the fixed strip, site header offsets, style restoration and debugger cancellation. They also check clicks, typing, scrolling and offscreen input focus, including the rendered pixels.
+The eleven browser tests load the actual extension and cover resizing, native size limits, media queries, viewport units, state preservation, navigation, independent tabs, keyboard controls, the fixed strip, site header offsets, style restoration and debugger cancellation. They also check clicks, typing, scrolling and offscreen input focus, including the rendered pixels. Performance regressions are covered by a 5,000-element page and delayed debugger replies, including reset while a resize is pending.
 
 Tests use temporary browser profiles and remove them afterward. The automation hides Chrome's debugging banner to keep the test viewport stable. Fixtures forbid iframe embedding, inline styles and HTML sinks through CSP and Trusted Types.
 

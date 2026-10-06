@@ -14,6 +14,8 @@
   let requestId = 0;
   let drag;
   let frame;
+  let inFlightResize;
+  let pendingResize;
   let heartbeat;
   let missedReplies = 0;
   const HEADER_HEIGHT = 40;
@@ -22,6 +24,7 @@
   let pageSheet;
   let pageObserver;
   let insetFrame;
+  let insetTimer;
   let insetId = 0;
 
   function updatePageInset() {
@@ -35,6 +38,7 @@
       const rules = [`:root { padding-top:calc(${padding} + ${HEADER_HEIGHT}px)!important;
         scroll-padding-top:calc(${scrollPadding === "auto" ? "0px" : scrollPadding} + ${HEADER_HEIGHT}px)!important; }`];
       const active = new Set();
+      const adjustments = [];
       for (const element of document.querySelectorAll("*")) {
         if (element === host || !(element instanceof HTMLElement)) continue;
         const style = element.computedStyleMap();
@@ -44,6 +48,10 @@
         if (position === "fixed" && element.offsetParent) continue;
         const top = style.get("top").toString();
         if (top === "auto") continue;
+        adjustments.push({ element, top });
+      }
+      // Finish style reads before attribute writes invalidate the site's styles.
+      for (const { element, top } of adjustments) {
         let record = insetElements.get(element);
         if (!record) {
           record = { id: `qv-${++insetId}`, original: element.getAttribute(INSET_ATTRIBUTE) };
@@ -72,8 +80,21 @@
   }
 
   function schedulePageInset() {
-    cancelAnimationFrame(insetFrame);
-    insetFrame = requestAnimationFrame(updatePageInset);
+    // Full-page style inspection must stay out of the pointer-move path.
+    if (drag) {
+      clearTimeout(insetTimer);
+      cancelAnimationFrame(insetFrame);
+      insetTimer = insetFrame = undefined;
+      return;
+    }
+    if (insetTimer !== undefined || insetFrame !== undefined) return;
+    insetTimer = setTimeout(() => {
+      insetTimer = undefined;
+      insetFrame = requestAnimationFrame(() => {
+        insetFrame = undefined;
+        if (!drag) updatePageInset();
+      });
+    }, 120);
   }
 
   function send(message) {
@@ -86,6 +107,7 @@
     clearInterval(heartbeat);
     cancelAnimationFrame(frame);
     cancelAnimationFrame(insetFrame);
+    clearTimeout(insetTimer);
     pageObserver?.disconnect();
     if (pageSheet) document.adoptedStyleSheets = document.adoptedStyleSheets.filter(sheet => sheet !== pageSheet);
     for (const [element, record] of insetElements) restoreInsetAttribute(element, record);
@@ -103,7 +125,6 @@
     shadow.querySelector('[name="height"]').max = availableHeight;
     shadow.querySelector("output").textContent = scale < 1 ? `${Math.round(scale * 100)}%` : "px";
     shadow.querySelector(".toolbar").style.zoom = 1 / scale;
-    schedulePageInset();
     shadow.querySelector(".right").style.width = `${12 / scale}px`;
     shadow.querySelector(".bottom").style.height = `${12 / scale}px`;
     shadow.querySelector(".corner").style.width = `${24 / scale}px`;
@@ -113,17 +134,33 @@
   function resize(w, h) {
     width = Math.max(Math.min(240, availableWidth), Math.min(availableWidth, Math.round(w)));
     height = Math.max(Math.min(180, availableHeight), Math.min(availableHeight, Math.round(h)));
-    const message = { type: "resize", width, height, requestId: ++requestId };
+    pendingResize = { type: "resize", width, height, requestId: ++requestId };
     display();
-    cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => send(message));
+    scheduleResize();
+  }
+
+  function scheduleResize() {
+    if (inFlightResize !== undefined || frame !== undefined || !pendingResize) return;
+    frame = requestAnimationFrame(() => {
+      frame = undefined;
+      const message = pendingResize;
+      pendingResize = undefined;
+      inFlightResize = message.requestId;
+      send(message);
+    });
   }
 
   globalThis.__viewportLab = {
     receive(message) {
       missedReplies = 0;
       if (message.type === "stop") return destroy();
-      if (message.type !== "size" || message.requestId < requestId) return;
+      if (message.type !== "size") return;
+      // An older reply still releases transport capacity for the latest intent.
+      if (message.requestId === inFlightResize) {
+        inFlightResize = undefined;
+        scheduleResize();
+      }
+      if (message.requestId < requestId) return;
       ({ width, height, scale, availableWidth, availableHeight } = message);
       display();
     }
@@ -200,7 +237,12 @@
     display();
 
     listen(shadow.querySelector(".close"), "click", () => send({ type: "stop" }));
-    listen(shadow.querySelector(".reset"), "click", () => send({ type: "reset", requestId: ++requestId }));
+    listen(shadow.querySelector(".reset"), "click", () => {
+      pendingResize = undefined;
+      cancelAnimationFrame(frame);
+      frame = undefined;
+      send({ type: "reset", requestId: ++requestId });
+    });
     for (const input of shadow.querySelectorAll("input")) {
       const commit = () => {
         const value = input.valueAsNumber;
@@ -220,6 +262,7 @@
         event.preventDefault();
         event.stopPropagation();
         drag = { axis: handle.dataset.axis, x: event.screenX, y: event.screenY, width, height, scale };
+        schedulePageInset();
         handle.setPointerCapture(event.pointerId);
       });
       listen(handle, "pointermove", event => {
@@ -231,7 +274,11 @@
           drag.axis === "width" ? drag.height : drag.height + (event.screenY - drag.y) / drag.scale
         );
       });
-      const finish = () => { drag = undefined; };
+      const finish = () => {
+        if (!drag) return;
+        drag = undefined;
+        schedulePageInset();
+      };
       listen(handle, "pointerup", finish);
       listen(handle, "pointercancel", finish);
       listen(handle, "lostpointercapture", finish);

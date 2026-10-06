@@ -24,7 +24,7 @@ footer{height:1000px}aside{position:fixed;right:16px;bottom:16px}
 </main><div class="units"></div><button id="click">Interact</button><a href="#end" id="jump">Jump to bottom</a><footer id="end"><input id="lower-state" placeholder="Field below"></footer><aside id="fixed">Fixed</aside></body></html>`;
 
 before(async () => {
-  const style = fixture.match(/<style>([\s\S]*?)<\/style>/)[1];
+  const style = fixture.match(/<style>([\s\S]*?)<\/style>/)[1] + ".responsive-top{position:fixed;top:0;left:0}@media(max-width:800px){.responsive-top{top:12px}}";
   server = createServer((request, response) => {
     response.setHeader("X-Frame-Options", "DENY");
     response.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self'; frame-ancestors 'none'; require-trusted-types-for 'script'; trusted-types 'none'");
@@ -46,6 +46,11 @@ before(async () => {
     response.setHeader("Content-Type", "text/html; charset=utf-8");
     if (request.url === "/header") {
       response.end('<!doctype html><html><head><title>Fixed header fixture</title><link rel="stylesheet" href="/header.css"></head><body><button id="fixed-top" class="topbar">Site header</button><div id="start">Page start</div><nav id="sticky">Sticky header</nav><footer></footer><aside id="fixed-bottom">Bottom controls</aside></body></html>');
+      return;
+    }
+    if (request.url === "/large") {
+      response.end(fixture.replace(/<style>[\s\S]*?<\/style>/, '<link rel="stylesheet" href="/fixture.css">')
+        .replace("</body>", '<button id="responsive-top" class="responsive-top">Responsive header</button><section>' + "<span>Dense page content </span>".repeat(5000) + "</section></body>"));
       return;
     }
     response.end(request.url === "/paint"
@@ -109,6 +114,16 @@ async function open(path = "/") {
 
 async function dimensions(page) {
   return page.evaluate(() => ({ width: innerWidth, height: innerHeight, outerWidth, outerHeight }));
+}
+
+async function controllerEvaluate(tabId, expression) {
+  return worker.evaluate(async ({ tabId, expression }) => {
+    const { result, exceptionDetails } = await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
+      contextId: sessions.get(tabId).contextId, expression, returnByValue: true
+    });
+    if (exceptionDetails) throw new Error(exceptionDetails.text);
+    return result.value;
+  }, { tabId, expression });
 }
 
 async function windowBounds(page) {
@@ -268,6 +283,99 @@ test("the fixed strip reserves page space, keeps fixed and sticky headers below 
     assert.equal(await page.evaluate(() => document.adoptedStyleSheets.length), 1);
     assert.equal(await page.locator("body").evaluate(e => getComputedStyle(e).color), "rgb(1, 2, 3)");
   } finally { await page.close(); }
+});
+
+test("dragging a dense page avoids full-page style scans until release and updates responsive headers afterward", async () => {
+  const { page, tabId } = await open("/large");
+  try {
+    await page.waitForFunction(() => document.querySelector("#responsive-top").getBoundingClientRect().top === 40);
+    await controllerEvaluate(tabId, `(() => {
+      globalThis.__insetScans = 0;
+      const select = document.querySelectorAll;
+      document.querySelectorAll = function(selector) {
+        if (selector === "*") ++__insetScans;
+        return select.call(this, selector);
+      };
+    })()`);
+    const box = await page.locator("viewport-lab-controls .right").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 - 500, box.y + box.height / 2, { steps: 30 });
+    const duringDrag = await controllerEvaluate(tabId, "__insetScans");
+    await page.mouse.up();
+    await waitSize(page, 700, 800);
+    assert.equal(duringDrag, 0, "Full-page header scans must stay out of the drag path");
+    await page.waitForFunction(() => document.querySelector("#responsive-top").getBoundingClientRect().top === 52);
+    assert.ok(await controllerEvaluate(tabId, "__insetScans") <= 2, "Header updates should be batched after dragging");
+    assert.deepEqual(await windowBounds(page), nativeWindow);
+  } finally { await page.close(); }
+});
+
+test("slow debugger replies collapse pending resize requests to the final dimensions", async () => {
+  const { page, tabId } = await open();
+  try {
+    await size(page, 500, 400);
+    await worker.evaluate(id => enqueue(id, () => {}), tabId);
+    await worker.evaluate(() => {
+      globalThis.__originalCommand = chrome.debugger.sendCommand;
+      globalThis.__holdMetrics = () => {
+        globalThis.__metricCalls = 0;
+        let started;
+        globalThis.__metricStarted = new Promise(resolve => { started = resolve; });
+        const gate = new Promise(resolve => { globalThis.__releaseMetric = resolve; });
+        chrome.debugger.sendCommand = async (...args) => {
+          if (args[1] === "Emulation.setDeviceMetricsOverride" && ++__metricCalls === 1) {
+            started();
+            await gate;
+          }
+          return __originalCommand(...args);
+        };
+      };
+      __holdMetrics();
+    });
+    await page.locator("viewport-lab-controls .right").evaluate(handle => {
+      handle.addEventListener("pointerdown", event => {
+        globalThis.__dragOrigin = { x: event.screenX, y: event.screenY, pointerId: event.pointerId };
+      }, { once: true });
+    });
+    const box = await page.locator("viewport-lab-controls .right").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.evaluate(async () => {
+      const handle = document.querySelector("viewport-lab-controls").shadowRoot.querySelector(".right");
+      for (let step = 1; step <= 12; step++) {
+        handle.dispatchEvent(new PointerEvent("pointermove", {
+          bubbles: true, buttons: 1, pointerId: __dragOrigin.pointerId,
+          screenX: __dragOrigin.x + step * 10, screenY: __dragOrigin.y
+        }));
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+    });
+    await page.mouse.up();
+    await worker.evaluate(() => __releaseMetric());
+    await waitSize(page, 620, 400);
+    await worker.evaluate(id => enqueue(id, () => {}), tabId);
+    assert.equal(await worker.evaluate(() => __metricCalls), 2, "Only the in-flight and latest resize should reach the debugger");
+    assert.equal(await page.getByRole("spinbutton", { name: "Larghezza viewport" }).inputValue(), "620");
+    // Reset must discard pending drag/key intentions even before an old reply.
+    await worker.evaluate(() => __holdMetrics());
+    const right = page.getByRole("separator", { name: "Ridimensiona larghezza" });
+    await right.press("Shift+ArrowLeft");
+    await worker.evaluate(() => __metricStarted);
+    for (let step = 0; step < 5; step++) await right.press("Shift+ArrowLeft");
+    await page.getByRole("button", { name: "Ripristina dimensioni iniziali" }).press("Enter");
+    await worker.evaluate(() => __releaseMetric());
+    await waitSize(page, 1200, 800);
+    await worker.evaluate(id => enqueue(id, () => {}), tabId);
+    assert.equal(await worker.evaluate(() => __metricCalls), 2);
+    assert.equal(await page.getByRole("spinbutton", { name: "Larghezza viewport" }).inputValue(), "1200");
+  } finally {
+    await worker.evaluate(() => {
+      globalThis.__releaseMetric?.();
+      if (globalThis.__originalCommand) chrome.debugger.sendCommand = __originalCommand;
+    });
+    await page.close();
+  }
 });
 
 test("reloads and cross-origin navigation preserve dimensions and reinstall the handles", async () => {
