@@ -10,6 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.0.6-2563EB?style=flat-square&amp;color=2563EB" alt="Version 1.0.6">
+  <a href="https://chromewebstore.google.com/detail/viewport-lab/mmebmkpgabcloknlnehekkkiohipdedj"><img src="https://img.shields.io/badge/Chrome%20Web%20Store-1.0.6-2563EB?style=flat-square&amp;logo=googlechrome&amp;logoColor=white&amp;color=2563EB" alt="Viewport Lab 1.0.6 on the Chrome Web Store"></a>
   <img src="https://img.shields.io/badge/Chrome-118%2B-2563EB?style=flat-square&amp;logo=googlechrome&amp;logoColor=white&amp;color=2563EB" alt="Chrome 118 or newer">
   <img src="https://img.shields.io/badge/Manifest-V3-2563EB?style=flat-square&amp;color=2563EB" alt="Manifest V3">
   <img src="https://img.shields.io/badge/build-not%20required-2563EB?style=flat-square&amp;color=2563EB" alt="No build required">
@@ -34,13 +35,19 @@
 
 ## Install
 
+Install Viewport Lab from the [Chrome Web Store](https://chromewebstore.google.com/detail/viewport-lab/mmebmkpgabcloknlnehekkkiohipdedj). The published listing is version 1.0.6, the same version as `manifest.json`. Chrome installs the extension and updates it automatically. Pin **Viewport Lab** from the browser's extensions menu.
+
+No npm installation, build step or server is needed. The extension controls are currently in Italian.
+
+### Unpacked loading for development
+
+To run this repository while developing:
+
 1. Download or clone this repository.
 2. Open `chrome://extensions`.
 3. Enable **Developer mode**.
 4. Click **Load unpacked** and select the repository folder containing `manifest.json`.
 5. Pin **Viewport Lab** from the browser's extensions menu.
-
-No npm installation, build step or server is needed to use the extension. The extension controls are currently in Italian.
 
 To update an unpacked installation, click **Reload** on Viewport Lab in `chrome://extensions`, then reload the page before activating it again.
 
@@ -119,7 +126,7 @@ With Bash, `jq` and `zip` installed, run:
 bin/release
 ```
 
-The script reads the version from `manifest.json` and creates `dist/viewport-lab-<version>.zip`, replacing any existing package for that version. The archive contains the extension files, icons and MIT license. It excludes development tools and documentation and does not publish a GitHub release. To install it, extract the archive and load that folder as an unpacked extension.
+The script reads the version from `manifest.json` and creates `dist/viewport-lab-<version>.zip`, replacing any existing package for that version. The archive contains the extension files, icons and MIT license. It excludes development tools and documentation and does not publish a GitHub release. To try that package locally, extract the archive and load the folder as an unpacked extension.
 
 ### Artwork
 
